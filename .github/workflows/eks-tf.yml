@@ -98,7 +98,13 @@ jobs:
       - name: Capture Terraform Outputs
         id: get-outputs
         working-directory: ./eks-cluster
-        run: terraform output -json > outputs.json
+        run: terraform output -json > eks-deployment-outputs.json
+
+      - name: Upload Terraform Outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-outputs
+          path: ./eks-cluster/eks-deployment-outputs.json
 
   # Job to deploy ingress after successful cluster deployment
   deploy-ingress:
@@ -109,14 +115,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Download Terraform Outputs
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-outputs
+          path: ./eks-cluster
+
       - name: Parse Terraform Outputs
         id: parse-outputs
         run: |
           echo "Retrieving Terraform outputs"
-          echo "CLUSTER_ENDPOINT=$(jq -r '.cluster_endpoint.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
-          echo "CLUSTER_SECURITY_GROUP_ID=$(jq -r '.cluster_security_group_id.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
-          echo "REGION=$(jq -r '.region.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=$(jq -r '.cluster_name.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
+          echo "CLUSTER_ENDPOINT=$(jq -r '.cluster_endpoint.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
+          echo "CLUSTER_SECURITY_GROUP_ID=$(jq -r '.cluster_security_group_id.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
+          echo "REGION=$(jq -r '.region.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=$(jq -r '.cluster_name.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
