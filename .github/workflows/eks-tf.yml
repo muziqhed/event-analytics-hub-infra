@@ -98,7 +98,10 @@ jobs:
       - name: Capture Terraform Outputs
         id: get-outputs
         working-directory: ./eks-cluster
-        run: terraform output -json > eks-deployment-outputs.json
+        run: terraform output -json > eks-deployment-outputs.json 2>/dev/null
+
+      - name: Verify Terraform Outputs
+        run: cat ./eks-cluster/eks-deployment-outputs.json
 
       - name: Upload Terraform Outputs
         uses: actions/upload-artifact@v3
@@ -125,7 +128,6 @@ jobs:
         id: parse-outputs
         run: |
           echo "Retrieving Terraform outputs"
-          cat ./eks-cluster/eks-deployment-outputs.json
           echo "CLUSTER_ENDPOINT=$(jq -r '.cluster_endpoint.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
           echo "CLUSTER_SECURITY_GROUP_ID=$(jq -r '.cluster_security_group_id.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
           echo "REGION=$(jq -r '.region.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
