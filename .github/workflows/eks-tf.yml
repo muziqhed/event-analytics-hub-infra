@@ -1,0 +1,96 @@
+name: "Terraform CI/CD Workflow"
+
+on:
+  # Trigger on pull request creation or updates
+  pull_request:
+    paths:
+      - "eks-cluster/**" # Trigger only for changes in the eks-cluster folder
+
+  push:
+    paths:
+      - "eks-cluster/**"
+
+  # Manual invocation with workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to perform"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+jobs:
+  # Job for pull request validation
+  validate:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+          cli_config_credentials_token: ${{ secrets.HCP_API_TOKEN }}
+
+      - name: Clean Terraform Directory
+        working-directory: ./eks-cluster
+        run: rm -rf .terraform .terraform.lock.hcl
+
+      - name: Terraform Init
+        working-directory: ./eks-cluster
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ./eks-cluster
+        run: terraform validate
+
+  # Job for manual invocation (plan, apply, or destroy)
+  manual:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Setup Terraform CLI
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+          cli_config_credentials_token: ${{ secrets.HCP_API_TOKEN }}
+
+      # Step 3: Initialize Terraform
+      - name: Terraform Init
+        working-directory: ./eks-cluster
+        run: terraform init
+
+      # Step 4: Run Terraform Action
+      - name: Run Terraform Action
+        working-directory: ./eks-cluster
+        env:
+          TF_CLI_ARGS_plan: "-input=false -var-file=variables.tfvars"
+          TF_CLI_ARGS_apply: "-input=false -auto-approve"
+          TF_CLI_ARGS_destroy: "-input=false -auto-approve"
+        run: |
+          case "${{ github.event.inputs.action }}" in
+            plan)
+              terraform plan
+              ;;
+            apply)
+              terraform apply
+              ;;
+            destroy)
+              terraform destroy
+              ;;
+            *)
+              echo "Invalid action. Please choose plan, apply, or destroy."
+              exit 1
+              ;;
+          esac
