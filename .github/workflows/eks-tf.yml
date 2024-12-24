@@ -98,7 +98,7 @@ jobs:
       - name: Capture Terraform Outputs
         id: get-outputs
         working-directory: ./eks-cluster
-        run: terraform output -json > eks-deployment-outputs.json 2>/dev/null
+        run: terraform output -json | awk 'NR>1' > eks-deployment-outputs.json
 
       - name: Verify Terraform Outputs
         run: cat ./eks-cluster/eks-deployment-outputs.json
