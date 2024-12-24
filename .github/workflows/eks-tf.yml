@@ -51,28 +51,27 @@ jobs:
         run: terraform validate
 
   # Job for manual invocation (plan, apply, or destroy)
-  manual:
+  eks-cluster-deployment:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+    outputs:
+      cluster-outputs: ${{ steps.get-outputs.outputs.outputs }}
     steps:
-      # Step 1: Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Setup Terraform CLI
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
           cli_config_credentials_token: ${{ secrets.HCP_API_TOKEN }}
 
-      # Step 3: Initialize Terraform
-      - name: Terraform Init
+      - name: Initialize Terraform
         working-directory: ./eks-cluster
         run: terraform init
 
-      # Step 4: Run Terraform Action
       - name: Run Terraform Action
+        id: deploy-cluster
         working-directory: ./eks-cluster
         env:
           TF_CLI_ARGS_plan: "-input=false -var-file=variables.tfvars"
@@ -94,3 +93,55 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Capture Terraform Outputs
+        id: get-outputs
+        working-directory: ./eks-cluster
+        run: terraform output -json > outputs.json
+
+  # Job to deploy ingress after successful cluster deployment
+  deploy-ingress:
+    needs: eks-cluster-deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Parse Terraform Outputs
+        id: parse-outputs
+        run: |
+          echo "Retrieving Terraform outputs"
+          echo "CLUSTER_ENDPOINT=$(jq -r '.cluster_endpoint.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
+          echo "CLUSTER_SECURITY_GROUP_ID=$(jq -r '.cluster_security_group_id.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
+          echo "REGION=$(jq -r '.region.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=$(jq -r '.cluster_name.value' < ./eks-cluster/outputs.json)" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # Verify AWS CLI
+      - name: Verify AWS CLI
+        run: aws sts get-caller-identity
+
+      - name: Configure kubectl
+        run: |
+          aws eks --region $REGION update-kubeconfig --name $CLUSTER_NAME
+
+      - name: Install AWS Load Balancer Controller
+        run: |
+          helm repo add eks https://aws.github.io/eks-charts
+          helm repo update
+          helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+            -n kube-system \
+            --set clusterName=$CLUSTER_NAME \
+            --set serviceAccount.create=false \
+            --set serviceAccount.name=aws-load-balancer-controller \
+            --set region=$REGION \
+            --set vpcId=$CLUSTER_SECURITY_GROUP_ID \
+            --set ingressClass=alb
+
+      - name: Deploy Ingress Resources
+        run: kubectl apply -f ingress.yaml
