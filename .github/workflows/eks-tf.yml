@@ -125,6 +125,7 @@ jobs:
         id: parse-outputs
         run: |
           echo "Retrieving Terraform outputs"
+          cat ./eks-cluster/eks-deployment-outputs.json
           echo "CLUSTER_ENDPOINT=$(jq -r '.cluster_endpoint.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
           echo "CLUSTER_SECURITY_GROUP_ID=$(jq -r '.cluster_security_group_id.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
           echo "REGION=$(jq -r '.region.value' < ./eks-cluster/eks-deployment-outputs.json)" >> $GITHUB_ENV
