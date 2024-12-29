@@ -161,4 +161,4 @@ jobs:
             --set ingressClass=alb
 
       - name: Deploy Ingress Resources
-        run: kubectl apply -f ingress.yaml
+        run: kubectl apply -f ingress.yml
