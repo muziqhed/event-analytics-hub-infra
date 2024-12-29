@@ -45,9 +45,9 @@ module "eks" {
   version = "20.8.5"
 
   cluster_name    = local.cluster_name
-  cluster_version = "1.30"
+  cluster_version = "1.31"
 
-  cluster_endpoint_public_access  = false
+  cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
 
   enable_cluster_creator_admin_permissions = true
@@ -84,3 +84,4 @@ module "irsa_lb_controller" {
   role_policy_arns              = ["arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"]
   oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
 }
+
