@@ -85,3 +85,70 @@ module "irsa_lb_controller" {
   oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
 }
 
+
+data "aws_secretsmanager_secret" "password" {
+  name = "ea-hub-db-password"
+}
+
+data "aws_secretsmanager_secret_version" "password_version" {
+  secret_id = data.aws_secretsmanager_secret.password.id
+}
+
+resource "aws_db_subnet_group" "ea-hub" {
+  name       = "ea-hub-subnet-group"
+  subnet_ids = module.vpc.private_subnets
+
+  tags = {
+    Name = "ea-hub-rds"
+  }
+}
+
+resource "aws_security_group" "rds" {
+  name   = "ea-hub-rds"
+  vpc_id = module.vpc.vpc_id
+
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ea-hub-rds"
+  }
+}
+
+resource "aws_db_parameter_group" "ea-hub" {
+  name   = "ea-hub"
+  family = "postgres14"
+
+  parameter {
+    name  = "log_connections"
+    value = "1"
+  }
+}
+
+resource "aws_db_instance" "ea-hub" {
+  identifier             = "ea-hub"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 5
+  engine                 = "postgres"
+  engine_version         = "14.15"
+  username               = "eahubdbuser"
+  password               = jsondecode(data.aws_secretsmanager_secret_version.password_version.secret_string).password
+  db_subnet_group_name   = aws_db_subnet_group.ea-hub.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  parameter_group_name   = aws_db_parameter_group.ea-hub.name
+  publicly_accessible    = false
+  skip_final_snapshot    = true
+}
+
+
