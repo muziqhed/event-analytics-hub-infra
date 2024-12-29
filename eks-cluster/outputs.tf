@@ -37,3 +37,13 @@ output "rds_username" {
   value       = aws_db_instance.ea-hub.username
   sensitive   = true
 }
+
+output "docdb_endpoint" {
+  value       = aws_docdb_cluster.docdb.endpoint
+  description = "DocumentDB Cluster Endpoint"
+}
+
+output "docdb_port" {
+  value       = aws_docdb_cluster.docdb.port
+  description = "DocumentDB Cluster Port"
+}
