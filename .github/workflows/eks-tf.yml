@@ -161,4 +161,5 @@ jobs:
             --set ingressClass=alb
 
       - name: Deploy Ingress Resources
+        working-directory: ./eks-cluster
         run: kubectl apply -f ingress.yml

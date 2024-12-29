@@ -97,9 +97,16 @@ data "aws_secretsmanager_secret_version" "password_version" {
 resource "aws_db_subnet_group" "ea-hub" {
   name       = "ea-hub-subnet-group"
   subnet_ids = module.vpc.private_subnets
-
   tags = {
     Name = "ea-hub-rds"
+  }
+}
+
+resource "aws_docdb_subnet_group" "docdb" {
+  name       = "docdb-subnet-group"
+  subnet_ids = module.vpc.private_subnets
+  tags = {
+    Name = "docdb-subnet-group"
   }
 }
 
@@ -126,6 +133,26 @@ resource "aws_security_group" "rds" {
   }
 }
 
+resource "aws_security_group" "docdb" {
+  name        = "ea-hub-docdb"
+  vpc_id = module.vpc.vpc_id
+
+  ingress {
+    from_port   = 27017
+    to_port     = 27017
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]   
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
 resource "aws_db_parameter_group" "ea-hub" {
   name   = "ea-hub"
   family = "postgres14"
@@ -149,6 +176,29 @@ resource "aws_db_instance" "ea-hub" {
   parameter_group_name   = aws_db_parameter_group.ea-hub.name
   publicly_accessible    = false
   skip_final_snapshot    = true
+}
+
+
+resource "aws_docdb_cluster" "docdb" {
+  cluster_identifier = "ea-hub-docdb-cluster"
+  engine             = "docdb"
+  master_username    = "docdbadmin"
+  master_password    = jsondecode(data.aws_secretsmanager_secret_version.password_version.secret_string).password
+  vpc_security_group_ids = [aws_security_group.docdb.id]
+  db_subnet_group_name   = aws_docdb_subnet_group.docdb.name
+  storage_encrypted      = true
+  backup_retention_period = 7
+  preferred_backup_window = "07:00-09:00"
+  apply_immediately      = true
+}
+
+# DocumentDB Cluster Instance
+resource "aws_docdb_cluster_instance" "docdb" {
+  count               = 1
+  identifier          = "docdb-instance-${count.index + 1}"
+  cluster_identifier  = aws_docdb_cluster.docdb.id
+  instance_class      = "db.r5.large"
+  apply_immediately   = true
 }
 
 
